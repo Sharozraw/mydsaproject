@@ -1,7 +1,5 @@
-﻿//This is a back end code for a hotel management system 
-//I am a vital member of this project
-
-using System;
+﻿using System;
+using System.Threading;
 
 namespace HotelManagementSystem
 {
@@ -134,6 +132,7 @@ namespace HotelManagementSystem
             return input;
         }
     }
+
     // Customer Class
     public class Customer
     {
@@ -273,14 +272,12 @@ namespace HotelManagementSystem
     {
         private CustomLinkedList<Room> rooms = new CustomLinkedList<Room>();
         private CustomLinkedList<string> customerBookings = new CustomLinkedList<string>(); // RoomNumber → CustomerName mapping
-        private CustomerManagement customerManagement;
+        private CustomerManagement customerManagement = new CustomerManagement(); // Integrated CustomerManagement
 
-        public HotelManagement(CustomerManagement customerManagement)
+        public HotelManagement()
         {
-            this.customerManagement = customerManagement;
-
             // Add rooms only once during initialization
-            AddRoom("001", "Luxury Suite", false, 300); // Already booked
+            AddRoom("001", "Luxury Suite", true, 300); // Already booked
             AddRoom("002", "Luxury Suite", false, 300); // Already booked
             AddRoom("003", "Normal Room", true, 100);
             AddRoom("004", "Normal Room", true, 100);
@@ -291,7 +288,10 @@ namespace HotelManagementSystem
             AddRoom("104", "Normal Room", false, 100); // Already booked
             AddRoom("105", "Normal Room", true, 100);
         }
-
+        public void AddCustomer(string name, string contactNumber, string roomNumber)
+        {
+            customerManagement.AddCustomer(name, contactNumber, roomNumber);
+        }
         // Add a room dynamically
         public void AddRoom(string roomNumber, string type, bool isAvailable, int price)
         {
@@ -341,42 +341,73 @@ namespace HotelManagementSystem
         // Checkout a customer
         public void CheckOut(string roomNumber, string name)
         {
+            bool roomFound = false;
+
+            // Check if the room is in the customerBookings list
             Node<string> bookingNode = customerBookings.First;
             while (bookingNode != null)
             {
                 if (bookingNode.Data == roomNumber)
                 {
-                    Node<Room> roomNode = rooms.First;
-                    while (roomNode != null)
-                    {
-                        if (roomNode.Data.RoomNumber == roomNumber && !roomNode.Data.IsAvailable)
-                        {
-                            roomNode.Data.IsAvailable = true;
-                            Console.WriteLine($"Room {roomNumber} has been checked out at {DateTime.Now}.");
-
-                            // Remove the customer from the customer list
-                            Node<Customer> customerNode = customerManagement.Customers.First;
-                            while (customerNode != null)
-                            {
-                                if (customerNode.Data.RoomNumber == roomNumber)
-                                {
-                                    customerManagement.Customers.Remove(customerNode);
-                                    break;
-                                }
-                                customerNode = customerNode.Next;
-                            }
-
-                            customerBookings.Remove(bookingNode);
-                            return;
-                        }
-                        roomNode = roomNode.Next;
-                    }
-                    Console.WriteLine("Room is not booked.");
-                    return;
+                    roomFound = true;
+                    break;
                 }
                 bookingNode = bookingNode.Next;
             }
-            Console.WriteLine("You have not booked this room.");
+
+            // If the room is not in customerBookings, check if it's in the inbuilt customer list
+            if (!roomFound)
+            {
+                Node<Customer> customerNode = customerManagement.Customers.First;
+                while (customerNode != null)
+                {
+                    if (customerNode.Data.RoomNumber == roomNumber)
+                    {
+                        roomFound = true;
+                        break;
+                    }
+                    customerNode = customerNode.Next;
+                }
+            }
+
+            if (roomFound)
+            {
+                Node<Room> roomNode = rooms.First;
+                while (roomNode != null)
+                {
+                    if (roomNode.Data.RoomNumber == roomNumber && !roomNode.Data.IsAvailable)
+                    {
+                        roomNode.Data.IsAvailable = true;
+                        Console.WriteLine($"Room {roomNumber} has been checked out at {DateTime.Now}.");
+
+                        // Remove the customer from the customer list
+                        Node<Customer> customerNode = customerManagement.Customers.First;
+                        while (customerNode != null)
+                        {
+                            if (customerNode.Data.RoomNumber == roomNumber)
+                            {
+                                customerManagement.Customers.Remove(customerNode);
+                                break;
+                            }
+                            customerNode = customerNode.Next;
+                        }
+
+                        // Remove the booking if it exists in customerBookings
+                        if (bookingNode != null)
+                        {
+                            customerBookings.Remove(bookingNode);
+                        }
+
+                        return;
+                    }
+                    roomNode = roomNode.Next;
+                }
+                Console.WriteLine("Room is not booked.");
+            }
+            else
+            {
+                Console.WriteLine("You have not booked this room.");
+            }
         }
 
         // Start the booking process
@@ -445,6 +476,12 @@ namespace HotelManagementSystem
 
             Console.WriteLine($"\nTotal Bill for {currentCustomerName}: ${totalBill}");
             Console.WriteLine("Thank you for using our Hotel Booking System. Goodbye!");
+        }
+
+        // Method to display customers (for manager menu)
+        public void DisplayCustomers()
+        {
+            customerManagement.DisplayCustomers();
         }
     }
 
@@ -663,18 +700,17 @@ namespace HotelManagementSystem
     {
         static void Main(string[] args)
         {
-            // Initialize HotelManagement, EmployeeManagement, and CustomerManagement objects
-            CustomerManagement customerManagement = new CustomerManagement();
-            HotelManagement hotelManagement = new HotelManagement(customerManagement);
+            // Initialize HotelManagement and EmployeeManagement objects
+            HotelManagement hotelManagement = new HotelManagement();
             EmployeeManagement employeeManagement = new EmployeeManagement();
 
             // Add sample employees
             employeeManagement.AddEmployee(new SecurityGuard("John Doe", 30, "Male", "1234567890", "SG001", false, 123, 300));
             employeeManagement.AddEmployee(new HouseKeeping("Fang Yuan", 22, "Male", "1234567360", "HK001", false, 123, 400));
 
-            // Add dummy customers who have already booked rooms
-            customerManagement.AddCustomer("Bob", "2222222222", "002");
-            customerManagement.AddCustomer("Charlie", "3333333333", "104");
+            // Add dummy customers who have already booked rooms using the public method
+            hotelManagement.AddCustomer("Bob", "2222222222", "002");
+            hotelManagement.AddCustomer("Charlie", "3333333333", "104");
 
             while (true) // Keep the main menu active until exit
             {
@@ -962,7 +998,7 @@ namespace HotelManagementSystem
                                         Console.WriteLine("           CUSTOMER LIST           ");
                                         Console.WriteLine("====================================");
                                         Console.WriteLine("List of Customers (Sorted by Name):");
-                                        customerManagement.DisplayCustomers();
+                                        hotelManagement.DisplayCustomers();
                                         Console.WriteLine("Press any key to continue...");
                                         Console.ReadKey();
                                         break;
